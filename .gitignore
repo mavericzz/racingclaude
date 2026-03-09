@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.log
+ml/__pycache__/
+ml/*.pkl
+ml/*.joblib
+ml/data/
+ml/venv/
+.DS_Store
+catboost_info/
