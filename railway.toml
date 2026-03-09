@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
+nixpacksConfigPath = "nixpacks.toml"
 buildCommand = "npm ci && npm run build"
 
 [deploy]
-startCommand = "NODE_ENV=production node --loader tsx src/server/index.ts"
-healthcheckPath = "/api/meetings?date=2026-03-09"
+startCommand = "NODE_ENV=production node --import tsx src/server/index.ts"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
