@@ -741,7 +741,7 @@ if (process.env.NODE_ENV === 'production') {
   const { resolve } = await import('path')
   const distPath = resolve(import.meta.dirname, '../../dist')
   app.use(express.static(distPath))
-  app.get('*', (_req, res) => {
+  app.get('/{*splat}', (_req, res) => {
     res.sendFile(resolve(distPath, 'index.html'))
   })
 }
