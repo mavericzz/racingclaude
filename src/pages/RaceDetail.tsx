@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api, type Prediction, type Runner, type SectionalResponse } from '../lib/api'
 import VerdictBadge from '../components/VerdictBadge'
+import AIAnalysisCard from '../components/AIAnalysisCard'
 import { cn } from '../lib/cn'
 import { ArrowLeft, ChevronRight, Trophy, TrendingUp, Zap, Target, Gauge, Info, Users, BarChart3 } from 'lucide-react'
 
@@ -548,6 +549,14 @@ export default function RaceDetail() {
                   </div>
                 ))}
               </div>
+              <div className="px-4">
+                <AIAnalysisCard raceId={raceId!} />
+              </div>
+            </div>
+          )}
+          {activeTab === 'ai' && !predictions && (
+            <div className="p-4">
+              <AIAnalysisCard raceId={raceId!} />
             </div>
           )}
           {activeTab === 'guide' && <AllRunnersTable runners={race.runners} />}

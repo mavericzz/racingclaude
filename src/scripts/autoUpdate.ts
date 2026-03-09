@@ -15,6 +15,7 @@ import pino from 'pino'
 import { pool, query } from '../lib/database.js'
 import { ingestScraperData } from '../etl/ingestScraperData.js'
 import { fetchMissingResults, compareWithPredictions } from '../etl/autoUpdateResults.js'
+import { updateAILearning } from '../etl/aiLearningLoop.js'
 
 const log = pino({ name: 'auto-update' })
 
@@ -55,6 +56,16 @@ async function main() {
     const comparison = await compareWithPredictions('v3')
     console.log(`  Races analyzed: ${comparison.racesAnalyzed}`)
     console.log(`  Predictions compared: ${comparison.predictionsCompared}`)
+
+    // Step 4: Update AI learning (score AI predictions, aggregate insights)
+    console.log('\nStep 4: Updating AI learning...')
+    try {
+      const learning = await updateAILearning()
+      console.log(`  AI predictions scored: ${learning.scored}`)
+      console.log(`  Learning insights updated: ${learning.insights}`)
+    } catch (err: any) {
+      console.log(`  AI learning update failed: ${err.message} (non-critical)`)
+    }
 
     // Summary
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)

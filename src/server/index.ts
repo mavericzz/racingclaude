@@ -11,10 +11,61 @@ import { LGBMPredictor } from '../ai/models/lgbmInference.js'
 import { analyzeRace } from '../ai/models/betting.js'
 import { storePredictions } from '../etl/autoUpdateResults.js'
 import { computeAllFeatures, flattenFeatures } from '../ai/features/index.js'
+import { generateAIAnalysis } from './aiAnalysis.js'
 
 const app = express()
 app.use(cors())
 app.use(express.json())
+
+// Auto-run migrations for AI learning tables (idempotent)
+async function runMigrations() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_analyses (
+        id SERIAL PRIMARY KEY,
+        race_id TEXT NOT NULL REFERENCES races(race_id),
+        analysis TEXT NOT NULL,
+        ai_top_picks JSONB,
+        ai_dangers JSONB,
+        ai_pace_call TEXT,
+        model_used TEXT,
+        tokens_prompt INT,
+        tokens_completion INT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(race_id)
+      );
+      CREATE TABLE IF NOT EXISTS ai_prediction_results (
+        id SERIAL PRIMARY KEY,
+        race_id TEXT NOT NULL REFERENCES races(race_id),
+        ai_top_pick_horse_id TEXT,
+        ai_top_pick_won BOOLEAN,
+        ai_top_pick_position INT,
+        ai_pace_call TEXT,
+        actual_pace TEXT,
+        pace_call_correct BOOLEAN,
+        scratching_count INT DEFAULT 0,
+        track_changed BOOLEAN DEFAULT FALSE,
+        original_going TEXT,
+        final_going TEXT,
+        analyzed_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(race_id)
+      );
+      CREATE TABLE IF NOT EXISTS ai_learning_insights (
+        id SERIAL PRIMARY KEY,
+        insight_type TEXT NOT NULL,
+        insight_key TEXT NOT NULL,
+        insight_data JSONB NOT NULL,
+        sample_size INT,
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(insight_type, insight_key)
+      );
+    `)
+    console.log('AI learning tables ready')
+  } catch (err) {
+    console.warn('AI migration skipped (tables may already exist):', (err as Error).message)
+  }
+}
+runMigrations()
 
 // Resolve hrs_aus_* IDs to canonical hrs_* IDs for data lookups
 async function resolveHorseIds(horseIds: string[]): Promise<Map<string, string>> {
@@ -80,6 +131,8 @@ app.get('/api/meetings', async (req, res) => {
                 off_time, field_size, prize_total
          FROM races
          WHERE meeting_id = $1
+           AND COALESCE(is_trial, FALSE) = FALSE
+           AND COALESCE(is_jump_out, FALSE) = FALSE
          ORDER BY COALESCE(race_number, 0), off_time`,
         [m.meeting_id]
       )
@@ -167,10 +220,16 @@ app.get('/api/meetings', async (req, res) => {
 app.get('/api/meetings/dates', async (_req, res) => {
   try {
     const dates = await query<{ meeting_date: string; count: number }>(
-      `SELECT meeting_date::text, COUNT(*)::int AS count
-       FROM meetings
-       GROUP BY meeting_date
-       ORDER BY ABS(meeting_date - CURRENT_DATE), meeting_date DESC
+      `SELECT m.meeting_date::text, COUNT(DISTINCT m.meeting_id)::int AS count
+       FROM meetings m
+       WHERE EXISTS (
+         SELECT 1 FROM races r
+         WHERE r.meeting_id = m.meeting_id
+           AND COALESCE(r.is_trial, FALSE) = FALSE
+           AND COALESCE(r.is_jump_out, FALSE) = FALSE
+       )
+       GROUP BY m.meeting_date
+       ORDER BY ABS(m.meeting_date - CURRENT_DATE), m.meeting_date DESC
        LIMIT 60`
     )
     res.json(dates)
@@ -720,6 +779,32 @@ app.get('/api/races/:raceId/scratchings', async (req, res) => {
   } catch (err) {
     console.error('GET /api/races/:raceId/scratchings error:', err)
     res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/ai-analysis/:raceId - generate AI race analysis via OpenRouter
+app.post('/api/ai-analysis/:raceId', async (req, res) => {
+  try {
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(503).json({ error: 'AI analysis not configured. Set OPENROUTER_API_KEY.' })
+    }
+    const { raceId } = req.params
+    const force = req.query.force === 'true'
+
+    // If force, delete cached analysis first
+    if (force) {
+      await pool.query('DELETE FROM ai_analyses WHERE race_id = $1', [raceId])
+    }
+
+    const result = await generateAIAnalysis(raceId)
+    res.json(result)
+  } catch (err: any) {
+    console.error('POST /api/ai-analysis/:raceId error:', err)
+    const status = err.message?.includes('Rate limited') ? 429
+      : err.message?.includes('credits exhausted') ? 402
+      : err.message?.includes('not found') ? 404
+      : 500
+    res.status(status).json({ error: err.message || 'AI analysis failed' })
   }
 })
 

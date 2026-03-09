@@ -196,6 +196,19 @@ export interface AnalysisSummary {
   }>
 }
 
+export interface AIAnalysisResponse {
+  raceId: string
+  analysis: string
+  aiTopPicks: Array<{ horse_id: string; horse_name: string; confidence: string }> | null
+  aiDangers: Array<{ horse_id: string; horse_name: string }> | null
+  aiPaceCall: string | null
+  keyFactor: string | null
+  model: string
+  tokensUsed: { prompt: number; completion: number }
+  generatedAt: string
+  learningBasis: number
+}
+
 export const api = {
   getMeetings: (date: string) => fetchJson<Meeting[]>(`/meetings?date=${date}`),
   getDates: () => fetchJson<DateCount[]>(`/meetings/dates`),
@@ -204,4 +217,13 @@ export const api = {
   getSectionals: (raceId: string) => fetchJson<SectionalResponse>(`/races/${raceId}/sectionals`),
   getRaceAnalysis: (raceId: string) => fetchJson<RaceAnalysisResponse>(`/races/${raceId}/analysis`),
   getAnalysisSummary: (days?: number) => fetchJson<AnalysisSummary>(`/analysis/summary?days=${days ?? 7}`),
+  getAIAnalysis: async (raceId: string, force?: boolean): Promise<AIAnalysisResponse> => {
+    const url = `/api/ai-analysis/${raceId}${force ? '?force=true' : ''}`
+    const res = await fetch(url, { method: 'POST' })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: `API ${res.status}` }))
+      throw new Error(body.error || `API ${res.status}`)
+    }
+    return res.json()
+  },
 }
