@@ -5,6 +5,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Cache bust: force re-copy when source changes
+ARG CACHEBUST=1
 COPY . .
 RUN npm run build
 
