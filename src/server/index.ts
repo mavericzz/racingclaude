@@ -741,7 +741,9 @@ if (process.env.NODE_ENV === 'production') {
   const { resolve } = await import('path')
   const distPath = resolve(import.meta.dirname, '../../dist')
   app.use(express.static(distPath))
-  app.get('/{*splat}', (_req, res) => {
+  // SPA fallback: serve index.html for any non-API route
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
     res.sendFile(resolve(distPath, 'index.html'))
   })
 }
