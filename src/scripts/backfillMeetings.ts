@@ -19,7 +19,7 @@ async function main() {
     const to = format(chunkEnd, 'yyyy-MM-dd')
 
     try {
-      const races = await ingestMeetings(from, to)
+      const races = await ingestMeetings(from)
       totalRaces += races
       process.stdout.write(`.`)
     } catch (err: any) {

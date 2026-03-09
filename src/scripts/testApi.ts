@@ -3,7 +3,7 @@ import { traClient } from '../lib/traClient.js'
 async function main() {
   // Test 1: Get a day of AU meets
   console.log('=== Testing AU Meets ===')
-  const meets = await traClient.getAustraliaMeets('2025-03-01', '2025-03-01')
+  const meets = await traClient.getAustraliaMeets('2025-03-01')
   console.log(JSON.stringify(meets, null, 2).substring(0, 3000))
 
   // Test 2: Get a single race with runners
